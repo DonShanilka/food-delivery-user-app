@@ -38,32 +38,39 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError("");
+
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !password) {
+      setError("Enter your email and password to continue.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await apiPost<{ success: boolean; data: any }>(
-        "/users/login",
-        {
-          email,
-          password,
-        },
-      );
+      const result = await apiPost<any>("/users/login", {
+        email: normalizedEmail,
+        password,
+      });
 
-      if (result?.data) {
-        const token = (result as any)?.token || (result.data as any)?.token;
+      const response = result as any;
+      const loginData = response?.data?.data ?? response?.data ?? response;
+      const authenticatedUser =
+        loginData?.user ?? (loginData?._id ? loginData : null);
+      const token = loginData?.token ?? response?.token;
 
-        if (token) {
-          await AsyncStorage.setItem("token", token);
-        }
-
-        await setUser(result.data);
+      if (!authenticatedUser?._id || typeof token !== "string" || !token) {
+        throw new Error("Login response is missing the user or authentication token.");
       }
+
+      await AsyncStorage.setItem("token", token);
+      await setUser(authenticatedUser);
 
       navigation.navigate("MainTabs", {
         screen: "Home",
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Unable to log in. Please try again.");
     } finally {
       setLoading(false);
     }

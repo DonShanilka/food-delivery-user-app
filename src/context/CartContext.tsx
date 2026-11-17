@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import { CartItem, MenuItem, Order } from "@/types";
+import { CartItem, GeoPoint, MenuItem, Order } from "@/types";
 
 interface CartContextType {
   cart: CartItem[];
@@ -8,6 +8,8 @@ interface CartContextType {
     item: MenuItem,
     restaurantId: string,
     restaurantName: string,
+    restaurantAddress?: string,
+    restaurantLocation?: GeoPoint,
   ) => void;
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, delta: number) => void;
@@ -28,6 +30,8 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     item: MenuItem,
     restaurantId: string,
     restaurantName: string,
+    restaurantAddress?: string,
+    restaurantLocation?: GeoPoint,
   ) => {
     setCart((prev) => {
       const existing = prev.find((c) => c.item.id === item.id);
@@ -36,7 +40,17 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
           c.item.id === item.id ? { ...c, quantity: c.quantity + 1 } : c,
         );
       }
-      return [...prev, { item, restaurantId, restaurantName, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          item,
+          restaurantId,
+          restaurantName,
+          restaurantAddress,
+          restaurantLocation,
+          quantity: 1,
+        },
+      ];
     });
   };
 

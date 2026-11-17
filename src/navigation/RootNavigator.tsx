@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import MainTabs from "@/navigation/MainTabs";
 import RestaurantScreen from "@/screens/RestaurantScreen";
 import CheckoutScreen from "@/screens/CheckoutScreen";
+import OrderTrackingScreen from "@/screens/OrderTrackingScreen";
 import SplashScreen from "@/screens/SplashScreen";
 import LoginScreen from "@/screens/LoginScreen";
 import RegisterScreen from "@/screens/RegisterScreen";
@@ -22,6 +23,11 @@ export default function RootNavigator() {
         name="Checkout"
         component={CheckoutScreen}
         options={{ headerShown: true, title: "Checkout" }}
+      />
+      <Stack.Screen
+        name="OrderTracking"
+        component={OrderTrackingScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

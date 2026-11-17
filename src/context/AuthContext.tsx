@@ -31,8 +31,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         ]);
 
         if (stored) {
-          setUserState(JSON.parse(stored) as User);
-          return;
+          const parsedUser = JSON.parse(stored);
+          // Older app versions stored the complete login response data here.
+          const storedUser = parsedUser?.user ?? parsedUser;
+
+          if (storedUser?._id) {
+            setUserState(storedUser as User);
+            if (storedUser !== parsedUser) {
+              await AsyncStorage.setItem("user", JSON.stringify(storedUser));
+            }
+            return;
+          }
+
+          // Discard malformed cached user data and recover from the token below.
+          await AsyncStorage.removeItem("user");
         }
 
         // If we have a token but no stored user, try fetching profile

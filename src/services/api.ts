@@ -1,14 +1,21 @@
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+const expoHostUri =
+  Constants.expoConfig?.hostUri ||
+  Constants.manifest2?.extra?.expoClient?.hostUri ||
+  Constants.manifest?.debuggerHost;
+
 const localHost =
-  Constants.manifest?.debuggerHost?.split(":").shift() ||
+  expoHostUri?.split(":")[0] ||
   Constants.expoConfig?.extra?.localHost ||
   "localhost";
 
+const configuredApiUrl = Constants.expoConfig?.extra?.apiUrl;
+
 export const BASE_URL = __DEV__
   ? `http://${localHost}:3000/api`
-  : "http://localhost:3000/api";
+  : configuredApiUrl || "http://localhost:3000/api";
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("Content-Type")?.toLowerCase() || "";
@@ -166,7 +173,10 @@ export async function apiPost<T>(path: string, body: any): Promise<T> {
   const json = await parseResponse<T>(response);
 
   if (!response.ok) {
-    throw new Error((json as any)?.message || "Server error");
+    const error = json as any;
+    const details = Array.isArray(error?.errors) ? error.errors.join("; ") : "";
+    const message = [error?.message, details].filter(Boolean).join(": ");
+    throw new Error(message || "Server error");
   }
 
   return json;

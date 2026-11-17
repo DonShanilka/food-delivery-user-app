@@ -16,7 +16,17 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow HotPlate to use your location to pin your delivery and track your order."
+        }
+      ]
+    ],
+    "extra": {
+      "localHost": "192.168.1.123",
+      "apiUrl": "http://192.168.1.123:3000/api"
+    }
   }
 }

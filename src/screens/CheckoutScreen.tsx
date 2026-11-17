@@ -5,18 +5,20 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ScrollView,
+  ActivityIndicator,
   TextInput,
   Modal,
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { RootStackParamList } from "@/types";
 import { apiPost } from "@/services/api";
-import { Order, PaymentMethod } from "@/types";
+import { GeoPoint, Order, PaymentMethod } from "@/types";
 
 const paymentMethods = ["Cash on Delivery", "Card", "Wallet"];
 
@@ -29,6 +31,11 @@ export default function CheckoutScreen() {
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
+  const [deliveryLocation, setDeliveryLocation] = useState<GeoPoint | null>(null);
+  const [restaurantLocation, setRestaurantLocation] = useState<GeoPoint | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
@@ -41,6 +48,51 @@ export default function CheckoutScreen() {
       setAddress(user.address ?? "");
     }
   }, [user]);
+
+  const captureDeliveryLocation = async () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== "granted") {
+        throw new Error("Allow location access to add the delivery pin.");
+      }
+
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setDeliveryLocation({
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+      });
+
+      const cartRestaurant = cart[0];
+      if (cartRestaurant?.restaurantLocation) {
+        setRestaurantLocation(cartRestaurant.restaurantLocation);
+      } else if (cartRestaurant?.restaurantAddress?.trim()) {
+        const result = await Location.geocodeAsync(
+          cartRestaurant.restaurantAddress.trim(),
+        );
+        const match = result[0];
+        if (match) {
+          setRestaurantLocation({
+            latitude: match.latitude,
+            longitude: match.longitude,
+          });
+        } else {
+          setLocationError("Could not map the restaurant address. Please contact the restaurant.");
+        }
+      } else {
+        setLocationError("Restaurant address is missing, so its map pin cannot be set.");
+      }
+    } catch (cause) {
+      setLocationError(
+        cause instanceof Error ? cause.message : "Could not get your location.",
+      );
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const mapPaymentMethod = (method: string): PaymentMethod => {
     if (method === "Card") return "CARD";
@@ -60,6 +112,33 @@ export default function CheckoutScreen() {
       return;
     }
 
+    if (!user._id) {
+      setError("Your login session is incomplete. Please log out and log in again.");
+      return;
+    }
+
+    const deliveryAddress = address.trim();
+    if (deliveryAddress.length < 5) {
+      setError("Please enter a delivery address of at least 5 characters.");
+      return;
+    }
+
+    const deliveryPhone = (phone || user.phone || "").trim();
+    if (deliveryPhone.length < 7 || deliveryPhone.length > 20) {
+      setError("Please enter a valid phone number (7–20 characters).");
+      return;
+    }
+
+    if (!deliveryLocation) {
+      setError("Add your delivery pin using the location button before placing the order.");
+      return;
+    }
+
+    if (!restaurantLocation) {
+      setError(locationError || "Could not find the restaurant map pin. Try setting your location again.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -71,21 +150,26 @@ export default function CheckoutScreen() {
           quantity: c.quantity,
           price: c.item.price,
         })),
-        address: address || "Home",
-        phoneNumber: phone || user.phone || "",
-        totalPrice: total,
+        deliveryAddress,
+        phoneNumber: deliveryPhone,
+        deliveryLocation,
+        restaurantLocation,
+        subtotal: cartTotal,
+        deliveryFee,
+        totalAmount: total,
         paymentMethod: mapPaymentMethod(payment),
-        notes,
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       };
 
       const res = await apiPost<{
         success: boolean;
         message?: string;
         data: Order;
-      }>("/order/AddOrder", payload);
+      }>("/order", payload);
 
       const order = res?.data as Order;
       placeOrder(order);
+      setPlacedOrderId(order._id);
       clearCart();
       setSuccessVisible(true);
     } catch (err: any) {
@@ -97,7 +181,11 @@ export default function CheckoutScreen() {
 
   const handleSuccessClose = () => {
     setSuccessVisible(false);
-    navigation.navigate("MainTabs", { screen: "Orders" });
+    if (placedOrderId) {
+      navigation.navigate("OrderTracking", { orderId: placedOrderId });
+    } else {
+      navigation.navigate("MainTabs", { screen: "Orders" });
+    }
   };
 
   return (
@@ -132,14 +220,66 @@ export default function CheckoutScreen() {
             value={address}
             onChangeText={setAddress}
           />
-          <View className="flex-row items-center mt-4 px-3 py-3 rounded-3xl bg-slate-50">
-            <Ionicons name="map-outline" size={18} color="#22C55E" />
-            <Text className="text-muted ml-3 text-sm">
-              {address
-                ? "Delivery location added"
-                : "Add delivery address to view route"}
-            </Text>
+          <View className="mt-4 rounded-3xl bg-slate-50 p-3">
+            <View className="flex-row items-center">
+              <Ionicons
+                name={deliveryLocation ? "location" : "map-outline"}
+                size={18}
+                color={deliveryLocation ? "#22C55E" : "#64748b"}
+              />
+              <Text className="ml-3 flex-1 text-sm text-gray-700">
+                {deliveryLocation
+                  ? `Delivery pin set · ${deliveryLocation.latitude.toFixed(5)}, ${deliveryLocation.longitude.toFixed(5)}`
+                  : "Add your map pin so the driver can find you"}
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => void captureDeliveryLocation()}
+              disabled={locationLoading}
+              className="mt-3 min-h-12 flex-row items-center justify-center rounded-2xl bg-green-600 px-4"
+            >
+              {locationLoading ? (
+                <ActivityIndicator color="white" />
+              ) : (
+                <>
+                  <Ionicons name="locate" size={18} color="white" />
+                  <Text className="ml-2 font-semibold text-white">
+                    {deliveryLocation ? "Refresh delivery pin" : "Use current location"}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {locationError ? (
+              <Text className="mt-2 text-xs text-red-600">{locationError}</Text>
+            ) : null}
           </View>
+        </View>
+
+        <View className="bg-white rounded-[32px] p-5 mb-4">
+          <View className="flex-row justify-between items-center mb-3">
+            <View>
+              <Text className="text-black font-semibold text-base">
+                Order Notes
+              </Text>
+              <Text className="text-muted text-sm mt-1">
+                Add any special instructions (optional)
+              </Text>
+            </View>
+            <Ionicons name="create-outline" size={22} color="#22C55E" />
+          </View>
+          <TextInput
+            className="rounded-2xl px-4 py-3 text-base text-gray-900 bg-slate-50 h-24"
+            placeholder="For example: no onions, please call on arrival"
+            placeholderTextColor="#9ca3af"
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            maxLength={500}
+            textAlignVertical="top"
+          />
+          <Text className="text-muted text-xs text-right mt-2">
+            {notes.length}/500
+          </Text>
         </View>
 
         <View className="bg-white/95 rounded-[32px] p-5 mb-4">

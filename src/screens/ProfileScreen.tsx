@@ -49,7 +49,10 @@ export default function ProfileScreen() {
   }, [user]);
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!user?._id) {
+      setMessage("Your login session is incomplete. Please log out and log in again.");
+      return;
+    }
     setLoading(true);
     setMessage(null);
 

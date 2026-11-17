@@ -16,11 +16,17 @@ export interface User {
   updatedAt?: string;
 }
 
+export interface GeoPoint {
+  latitude: number;
+  longitude: number;
+}
+
 export interface Restaurant {
   id: string;
   name: string;
   description?: string;
   address?: string;
+  location?: GeoPoint;
   phone?: string;
   email?: string;
   cuisine: string;
@@ -60,6 +66,10 @@ export type OrderStatus =
   | 'CONFIRMED'
   | 'PREPARING'
   | 'READY_FOR_PICKUP'
+  | 'DRIVER_ASSIGNED'
+  | 'PICKED_UP'
+  | 'DELIVERING'
+  | 'ARRIVED'
   | 'OUT_FOR_DELIVERY'
   | 'DELIVERED'
   | 'CANCELLED';
@@ -74,9 +84,13 @@ export interface Order {
   restaurantName?: string;
   driverId?: string;
   items: OrderItem[];
-  address: string;
+  deliveryLocation?: GeoPoint;
+  restaurantLocation?: GeoPoint;
+  address?: string;
+  deliveryAddress?: string;
   phoneNumber: string;
-  totalPrice: number;
+  totalPrice?: number;
+  totalAmount?: number;
   status: OrderStatus;
   paymentStatus?: PaymentStatus;
   paymentMethod: PaymentMethod;
@@ -93,6 +107,8 @@ export interface CartItem {
   item: MenuItem;
   restaurantId: string;
   restaurantName: string;
+  restaurantAddress?: string;
+  restaurantLocation?: GeoPoint;
   quantity: number;
 }
 
@@ -106,6 +122,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<MainTabParamList>;
   Restaurant: { restaurantId: string };
   Checkout: undefined;
+  OrderTracking: { orderId: string };
 };
 
 export type AuthStackParamList = {

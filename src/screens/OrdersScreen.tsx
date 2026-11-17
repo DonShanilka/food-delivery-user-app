@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, SafeAreaView } from "react-native";
+import { View, Text, FlatList, SafeAreaView, TouchableOpacity } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { useIsFocused } from "@react-navigation/native";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { apiGet } from "@/services/api";
-import { Order, OrderStatus } from "@/types";
+import { Order, OrderStatus, RootStackParamList } from "@/types";
 
 const statusConfig: Record<
   OrderStatus,
@@ -27,6 +29,26 @@ const statusConfig: Record<
     color: "#4CAF50",
     icon: "bicycle-outline",
   },
+  DRIVER_ASSIGNED: {
+    label: "Driver assigned",
+    color: "#4CAF50",
+    icon: "person-outline",
+  },
+  PICKED_UP: {
+    label: "Picked up",
+    color: "#2EC4B6",
+    icon: "bicycle-outline",
+  },
+  DELIVERING: {
+    label: "Delivering",
+    color: "#2EC4B6",
+    icon: "bicycle-outline",
+  },
+  ARRIVED: {
+    label: "Arrived",
+    color: "#4CAF50",
+    icon: "location-outline",
+  },
   OUT_FOR_DELIVERY: {
     label: "On the way",
     color: "#2EC4B6",
@@ -46,6 +68,7 @@ const statusConfig: Record<
 
 export default function OrdersScreen() {
   const { user } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { orders, loadOrders } = useCart();
   const isFocused = useIsFocused();
   const [loading, setLoading] = useState(false);
@@ -62,9 +85,9 @@ export default function OrdersScreen() {
         const response = await apiGet<{
           success: boolean;
           data: Order[];
-        }>(`/order/pending/${user._id}`);
+        }>(`/order/user/${encodeURIComponent(user._id)}`);
 
-        loadOrders(response.data ?? []);
+        loadOrders(Array.isArray(response.data) ? response.data : []);
       } catch (err: any) {
         setError(err.message || "Unable to load pending orders.");
       } finally {
@@ -117,17 +140,24 @@ export default function OrdersScreen() {
         keyExtractor={(o) => o._id}
         contentContainerStyle={{ padding: 16, paddingBottom: 120 }}
         renderItem={({ item: order }) => {
-          const status = statusConfig[order.status];
+          const orderItems = Array.isArray(order.items) ? order.items : [];
+          const status = statusConfig[order.status] ?? {
+            label: "Order received",
+            color: "#6B7280",
+            icon: "help-circle-outline",
+          };
+          const totalAmount = Number(order.totalAmount ?? order.totalPrice ?? 0);
+          const firstItemName = orderItems[0]?.name || "Order";
           return (
             <View className="bg-white rounded-3xl p-4 mb-4">
               <View className="flex-row justify-between items-start">
                 <View className="flex-1 pr-2">
                   <Text className="text-dark font-semibold text-base">
-                    {order.items[0].name}
+                    {firstItemName}
                   </Text>
                   <Text className="text-muted text-sm mt-1">
-                    {order.items.length} item(s) · $
-                    {order.totalPrice.toFixed(2)}
+                    {orderItems.length} item(s) · $
+                    {totalAmount.toFixed(2)}
                   </Text>
                 </View>
                 <View
@@ -152,6 +182,18 @@ export default function OrdersScreen() {
                   color={status.color}
                 />
               </View>
+              {order.status !== "DELIVERED" && order.status !== "CANCELLED" ? (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={() =>
+                    navigation.navigate("OrderTracking", { orderId: order._id })
+                  }
+                  className="mt-3 min-h-11 flex-row items-center justify-center rounded-xl bg-green-600"
+                >
+                  <Ionicons name="navigate-outline" size={17} color="white" />
+                  <Text className="ml-2 font-bold text-white">Track order</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
           );
         }}

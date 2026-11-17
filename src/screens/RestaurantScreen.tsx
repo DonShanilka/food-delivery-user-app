@@ -66,6 +66,14 @@ export default function RestaurantScreen() {
               : 0,
           description: restaurantRes.data.description || "",
           address: restaurantRes.data.address || "",
+          location:
+            typeof restaurantRes.data.location?.latitude === "number" &&
+            typeof restaurantRes.data.location?.longitude === "number"
+              ? {
+                  latitude: restaurantRes.data.location.latitude,
+                  longitude: restaurantRes.data.location.longitude,
+                }
+              : undefined,
           phone: restaurantRes.data.phone || "",
           email: restaurantRes.data.email || "",
           openingTime: restaurantRes.data.openingTime || "",
@@ -175,7 +183,15 @@ export default function RestaurantScreen() {
         renderItem={({ item }) => (
           <MenuItemRow
             item={item}
-            onAdd={() => addToCart(item, restaurant.id, restaurant.name)}
+            onAdd={() =>
+              addToCart(
+                item,
+                restaurant.id,
+                restaurant.name,
+                restaurant.address,
+                restaurant.location,
+              )
+            }
           />
         )}
         ListEmptyComponent={
